@@ -32,6 +32,7 @@ Features to add:
  -Add a settings button to each of the parameter sliders.
  This produces a popup where one can change the number of ticks
  or change the range.
+ -Add the ability to plot multiple lines.
 """
 import sys
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -70,7 +71,7 @@ class Canvas(FigureCanvasQTAgg):
                            "parameters with values": self._TITLE}
         self._menu_list = [key for key in self._menu_dict]
         self._menu = QtWidgets.QMenu(parent)
-        self._menu.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+        # self._menu.setWindowFlag(QtCore.Qt.FramelessWindowHint)
         for item in self._menu_list:
             self._menu.addAction(item)
         self._menu.triggered.connect(self.on_right_click_popup)
@@ -483,6 +484,7 @@ class App(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("A simple GUI")
         self.sliders = []
+        self._setting_sliders = False
         self.window = QtWidgets.QWidget(self)
         self.layout = QtWidgets.QHBoxLayout(self.window)
         rect = QtWidgets.QApplication.desktop().screenGeometry()
@@ -511,15 +513,15 @@ class App(QtWidgets.QMainWindow):
         self.dropdown_dict = {"sin": "a*sin(k*(x - phi)) + c",
                               "cos": "a*cos(k*(x - phi)) + c",
                               "tan": "a*tan(k*(x - phi)) + c",
-                              "arcsin": "a*arcsin(k*(x - phi)) + c",
-                              "arccos": "a*arccos(k*(x - phi)) + c",
-                              "arctan": "a*arcsin(k*(x - phi)) + c",
+                              # "arcsin": "a*arcsin(k*(x - phi)) + c",
+                              # "arccos": "a*arccos(k*(x - phi)) + c",
+                              # "arctan": "a*arcsin(k*(x - phi)) + c",
                               "sinh": "a*sinh(k*(x - b)) + c",
                               "cosh": "a*cosh(k*(x - b)) + c",
                               "tanh": "a*tanh(k*x) + c",
                               "exp": "c1*exp(-x*k1) + c2*exp(x*k2) + c",
                               "log": "a*log(k*(x - b)) + c",
-                              "power": "a**x + c",
+                              # "power": "a**x + c",
                               # "power2": "a*(x - b)**p + c",
                               "quadratic": "a*x**2 + b*x + c",
                               "gaussian": 
@@ -574,19 +576,24 @@ class App(QtWidgets.QMainWindow):
         Parameters:
          text: function expressed as a string.
         """
+        self._setting_sliders = True
         self.destroy_sliders()
         function_name = text
         ani = self.canvas.get_animation()
         ani.set_function(function_name)
-        dictionary = ani.function.get_default_values()
-        for key in dictionary:
-            slider_box = HorizontalSliderBox(self, key)
+        d = ani.function.get_enumerated_default_values()
+        for i in range(len(d)):
+            symbol = d[i][0]
+            value = d[i][1]
+            slider_box = HorizontalSliderBox(self, symbol)
             self.control_widgets.addWidget(slider_box)
-            slider_box.set_observers([self])
             slider_box.set_range(-10.0, 10.0)
             slider_box.set_number_of_ticks(201)
-            slider_box.set_slider(dictionary[key])
+            slider_box.set_observers([self])
+            slider_box.set_slider(value)
             self.sliders.append(slider_box)
+        self._setting_sliders = False
+        self.on_slider_changed({})
 
     def on_slider_changed(self, slider_input: dict) -> None:
         """
@@ -596,15 +603,13 @@ class App(QtWidgets.QMainWindow):
          slider_input: a dictionary containing information
          about the slider.
         """
-        d = {}
-        if self.sliders != []:
+        params = []
+        if self.sliders != [] and not self._setting_sliders:
             for slider in self.sliders:
                 info = slider.get_slider_info()
-                d[info['id']] = info['value']
-            default_values = tuple([d[key] for key in d])
-            # print(default_values)
+                params.append(info['value'])
             ani = self.canvas.get_animation()
-            ani.set_parameters(default_values)
+            ani.set_parameters(params)
 
     def destroy_sliders(self) -> None:
         """

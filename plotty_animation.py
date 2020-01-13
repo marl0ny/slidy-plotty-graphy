@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 from animator import Animator
 from functions import FunctionRtoR, is_defined_at_values, VariableNotFoundError
 from sympy import abc
+from typing import Tuple, List
+import config
 
 
 def change_array(x_arr: np.ndarray, y_arr: np.ndarray,
@@ -51,41 +53,87 @@ def change_array(x_arr: np.ndarray, y_arr: np.ndarray,
 
 class PlottyAnimator(Animator):
 
-    def __init__(self, dpi, figsize, interval):
+    def __init__(self, dpi: int, 
+                 figsize: Tuple[int], interval: int) -> None:
+        """
+        The constructor.
+
+        Parameters:
+         dpi: dots per inches, which controls the resolution.
+         fisize: tuple of two ints, which sets the size of the plot.
+         animation_interval: set the animation interval in milliseconds
+         between each animation frame.
+        """
         Animator.__init__(self, dpi, figsize, interval)
         ax = self.figure.add_subplot(1, 1, 1)
         # self.t = np.linspace(-np.pi, np.pi, 256)
-        self.t = np.linspace(-np.pi, np.pi, 1024)
+        if "Number of points" in config.config:
+            n = config.config["Number of points"]
+            self.t = np.linspace(-np.pi, np.pi, n)
+        else:
+            self.t = np.linspace(-np.pi, np.pi, 1024)
         ax.grid()
-        self.function = FunctionRtoR("sin(x)", abc.x)
-        ax.set_title("f(x) = sin(x)")
+        if "function" in config.config:
+            f = config.config["function"]
+            self.function = FunctionRtoR(f, abc.x)
+            ax.set_title("f(x) = %s" % (f))
+        else:
+            self.function = FunctionRtoR("sin(x)", abc.x)
+            ax.set_title("f(x) = sin(x)")
         default_values = self.function.get_default_values()
         self.params = (default_values[key] for key in default_values)
         self.y = self.function(self.t, *self.params)
         ax.set_xlim(np.amin(self.t), np.amax(self.t))
         ax.set_xlabel("x")
-        line, = ax.plot(self.t, self.y)
+        if "Plot Colour" in config.config:
+            color = config.config["Plot Colour"]
+            line, = ax.plot(self.t, self.y, color=color)
+        else:
+            line, = ax.plot(self.t, self.y)
         self.line = line
 
-    def update(self, delta_t):
-        # pass
-        # self.t += delta_t
-        # self.y = self.function(self.t, **self.params)
+    def update(self, delta_t: float) -> None:
+        """
+        Override the update method of the Animator class.
+
+        Parameters:
+         delta_t: time interval passed between each frame.
+        """
         self.line.set_ydata(self.y)
 
-    def change_values(self, x, y):
+    def change_values(self, x: float, y: float) -> None:
+        """
+        Change the values of the function output array to y
+        at the specified location on the input array x.
+
+        Parameters:
+         x: x value that corresponds to the new y value.
+         y: new y value
+        """
         change_array(self.t, self.y, x, y)
 
-    def set_parameters(self, parameters):
+    def set_parameters(self, parameters: List[float]) -> None:
+        """
+        Set the parameters used for the function.
+
+        Parameters:
+         parameters: the parameters of the function.
+        """
         try:
+            # print(parameters)
             y = self.function(self.t, *parameters)
         except TypeError as e:
+            # if there is a float division by
+            # zero maybe set the parameter to one?
             print(e)
             return
-        self.params = parameters
+        self.params = tuple(parameters)
         self.y = y
 
-    def on_plot_view_changed(self):
+    def on_plot_view_changed(self) -> None:
+        """
+        Respond if the plot view is changed.
+        """
         xlim = self.figure.get_axes()[0].get_xlim()
         n = len(self.t)
         # print(xlim)
@@ -93,7 +141,13 @@ class PlottyAnimator(Animator):
         self.line.set_xdata(self.t)
         self.y = self.function(self.t, *self.params)
 
-    def set_title(self, function_name):
+    def set_title(self, function_name: str) -> None:
+        """
+        Setter for the title of the plot.
+
+        Parameters:
+         function_name: the name of the function.
+        """
         self.toggle_blit()
         ax = self.figure.get_axes()[0]
         if "&" in function_name or len(function_name) > 150:
@@ -103,17 +157,31 @@ class PlottyAnimator(Animator):
         # ax.set_title(r"%s" %(function_name))
         self.toggle_blit()
 
-    def differentiate_function(self):
+    def differentiate_function(self) -> None:
+        """
+        Differentiate the function.
+        """
         old_function_name = self.function.get_function_name()
         self.function.derivative()
         self._diff_helper(old_function_name)
 
-    def antidifferentiate_function(self):
+    def antidifferentiate_function(self) -> None:
+        """
+        Antidifferentiate the function.
+        """
         old_function_name = self.function.get_function_name()
         self.function.antiderivative()
         self._diff_helper(old_function_name)
 
-    def _diff_helper(self, old_function_name):
+    def _diff_helper(self, old_function_name: str) -> None:
+        """
+        Helper function for the both the differentiation
+        and antidifferentiation functions.
+
+        Parameters:
+         old_function_name: the name of the original function
+         before mutating it to its derivative or antiderivative.
+        """
         d = self.function.get_default_values()
         params = tuple(d[key] for key in d)
         if not is_defined_at_values(self.function, np.pi, *params):
@@ -123,7 +191,13 @@ class PlottyAnimator(Animator):
         self.y = self.function(self.t, 
                           *self.params)
 
-    def set_function(self, function_name):
+    def set_function(self, function_name: str) -> None:
+        """
+        Setter for the function.
+
+        Parameters:
+         function_name: the string name of the function.
+        """
         if function_name.strip() == "":
             function_name == "zero(x)"
         if function_name != ():
